@@ -1,0 +1,5 @@
+#Copy this to /etc/ansible/hosts
+#This may not be necessary once we're in AWS, since we'll need to dynamically obtain/target IPs/DNS names
+
+[webserver]
+172.31.16.194 #Private IPv4 address of WWW server

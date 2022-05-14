@@ -1,0 +1,141 @@
+#Configures www server in its entirety, including Docker and its Apache HTTP Server container
+
+  - name: "ChrisSanfordMe Web Server Configuration"
+    hosts: webserver
+
+    tasks:
+
+      - name: "Ensure apt/lists dir exists" #If this task or a manual apt upgrade is not run then any attempt to upgrade, update, or install using apt will fail
+        file:
+          path: /var/lib/apt/lists/
+          state: directory
+          mode: 0755
+
+      - name: "Update apt and Upgrade the OS" #This can take a while to finish on initial run
+        become: yes
+        apt:
+          update_cache: yes
+          upgrade: dist
+
+      - name: "Show python lib/site paths" #Ensures the Docker SDK for Python is installed on the correct machine and for the Python version used by Ansible
+        community.general.python_requirements_info:
+
+      - name: "Install Git"
+        become: yes
+        ansible.builtin.package:
+          name: git-all
+          state: present
+
+      - name: "Clone or Pull DevOps-Demo Git Repo"
+        ansible.builtin.git:
+         repo: https://github.com/Chris-Sanford/DevOps-Demo.git
+         dest: /home/ubuntu/DevOps-Demo
+         update: yes
+         force: yes #If the local git repo detected any changes, this task would otherwise fail
+
+      - name: "Remove Apache2 from WWW server" #Would otherwise conflict with Docker
+        run_once: true
+        become: yes
+        ansible.builtin.shell: apt-get remove apache2 -y && sudo apt autoremove -y && sudo apt remove apache2.* -y
+
+      - name: "Make SetDockerPrereqs.sh Script Executable"
+        become: yes
+        ansible.builtin.file:
+          path: /home/ubuntu/DevOps-Demo/bash/SetDockerPrereqs.sh
+          owner: ubuntu
+          group: root
+          mode: 'u=rwx,g=rwx,o=rwx'
+
+      - name: "Download/Install/Configure Docker Prerequisites"
+        run_once: true
+        become: yes
+        ansible.builtin.shell: /home/ubuntu/DevOps-Demo/bash/SetDockerPrereqs.sh
+        
+      - name: "Install Docker"
+        run_once: true
+        become: yes
+        apt:
+          update_cache: yes
+          pkg:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose
+
+      - name: "Set docker.service to run at Startup"
+        run_once: true
+        ansible.builtin.systemd:
+          name: docker.service
+          enabled: yes
+          masked: no
+
+      - name: "Set containerd.service to run at Startup"
+        run_once: true
+        ansible.builtin.systemd:
+          name: containerd.service
+          enabled: yes
+          masked: no
+
+      - name: "Install PIP and Docker Package for Python from APT" #This can take a while
+        run_once: true
+        become: yes
+        apt:
+          update_cache: yes
+          state: present
+          pkg:
+          - python3-pip
+          - python3-docker #Is this the same as the Docker SDK that we later install using PIP?
+        
+      - name: "Install Docker SDK from PIP"
+        pip:
+          name: docker
+        become: yes #This is absolutely necessary! Otherwise it will succeed but Docker won't be able to pull an image
+
+      #Add Ubuntu user to Docker group! (See Docker Post Install Documentation)
+
+      - name: Copy fullchain.pem on DevOps to server.crt on WWW
+        ansible.builtin.copy:
+          src: /home/ubuntu/Secrets/www/fullchain.pem
+          dest: /home/ubuntu/DevOps-Demo/docker/server.crt
+
+      - name: Copy privkey.pem on DevOps to server.key on WWW
+        ansible.builtin.copy:
+          src: /home/ubuntu/Secrets/www/privkey.pem
+          dest: /home/ubuntu/DevOps-Demo/docker/server.key
+
+      - name: "Kill ChrisSanfordMe Container" #We may be able to bundle this into the Run Container task below so it simply rebuilds all in one command
+        become: yes
+        community.docker.docker_container:
+          name: chrissanfordme
+          state: absent
+          auto_remove: yes
+          detach: no
+          cleanup: yes
+          force_kill: yes
+
+      - name: "Kill ChrisSanfordMe_Image"
+        become: yes
+        community.docker.docker_image:
+          name: chrissanfordme_image
+          state: absent
+          force_absent: yes
+
+      - name: Build Docker Image "ChrisSanfordMe_Image"
+        become: yes
+        community.docker.docker_image:
+          name: chrissanfordme_image
+          build:
+            path: /home/ubuntu/DevOps-Demo/docker #See DockerFile in path for details
+          source: build
+
+      - name: "Run ChrisSanfordMe Container using ChrisSanfordMe_Image"
+        become: yes
+        community.docker.docker_container:
+          name: chrissanfordme
+          image: chrissanfordme_image
+          ports:
+          - 80:80
+          - 443:443
+          state: started
+          restart: yes
+          restart_policy: always

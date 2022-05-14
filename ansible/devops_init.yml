@@ -1,0 +1,118 @@
+#Performs initial OS configurations of DevOps server running Ansible, Terraform, Jenkins, and more.
+
+#This server is not meant to be rebuilt in the same way WWW is. It is a "pet," not "cattle." Therefore, these configurations are for initialization only and in a sense are meant for documentation purposes.
+
+#Run using the following command:
+#sudo ansible-playbook /home/ubuntu/DevOps-Demo/ansible/devops_init.yml
+---
+  - name: "DevOps Server Initialization"
+    hosts: localhost
+
+    tasks: 
+
+      - name: "Ensure apt/lists dir exists" #If this or a manual apt upgrade is not run then the update/distro upgrade will fail
+        file:
+          path: /var/lib/apt/lists/
+          state: directory
+          mode: 0755
+
+      - name: "Update apt and Upgrade the OS/Kernel"
+        apt:
+          update_cache: yes
+          upgrade: dist
+        become: yes
+
+      - name: "Set Local Git Directory as Safe" #Otherwise Git Clone/Pull will throw error
+        ansible.builtin.command: git config --global --add safe.directory /home/ubuntu/DevOps-Demo
+        become: yes
+
+      - name: Clone or Pull DevOps-Demo Git Repo
+        ansible.builtin.git:
+         repo: https://github.com/Chris-Sanford/DevOps-Demo.git
+         dest: /home/ubuntu/DevOps-Demo
+         update: yes
+         force: yes #If the local git repo detected any changes to stash, this task would otherwise fail
+
+      #- name: "Create /etc/ansible" #Make this actually only run once or ignore errors to continue
+      #  run_once: true
+      #  become: yes
+      #  ansible.builtin.command: mkdir /etc/ansible
+
+      - name: Update ansible.cfg
+        ansible.builtin.command: sudo cp /home/ubuntu/DevOps-Demo/ansible/ansible.cfg /etc/ansible/ansible.cfg --force --update
+        become: yes
+
+      - name: Update Ansible Hosts
+        ansible.builtin.command: sudo cp /home/ubuntu/DevOps-Demo/ansible/hosts /etc/ansible/hosts --force --update
+        become: yes
+
+      - name: Set hostname to devops #Will take effect upon restart
+        run_once: true
+        ansible.builtin.hostname:
+          name: devops
+
+      - name: Remove Apache2 from DevOps server #Would otherwise conflict with Jenkins on port 80
+        run_once: true #This doesn't seem to work. Maybe we can use apt module instead
+        become: yes
+        ansible.builtin.shell: apt-get remove apache2 -y && sudo apt autoremove -y && sudo apt remove apache2.* -y
+
+      - name: "Install PIP and Docker Package for Python3 from APT" #This can take a while
+        run_once: true
+        become: yes
+        apt:
+          update_cache: yes
+          state: present
+          pkg:
+          - python3-pip
+          - python3-docker #Is this the same as the Docker SDK that we later install using PIP?
+
+      - name: "Install Docker SDK from PIP3"
+        pip:
+          name: docker
+        become: yes #This is absolutely necessary! Otherwise it will succeed but Docker won't be able to pull an image
+
+      - name: "Add Apt Repo for Terraform" #Configure Prerequisites for Installing Terraform as per official documentation
+        run_once: true
+        become: yes
+        ansible.builtin.shell: curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add - && sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main" -y
+
+      - name: "Install Terraform" #Once prerequisites are configured, install using apt as per official documentation
+        run_once: true
+        become: yes
+        apt:
+          update_cache: yes
+          state: present
+          pkg: terraform
+
+      - name: Make install_jenkins.sh Script Executable
+        become: yes
+        ansible.builtin.file:
+          path: /home/ubuntu/DevOps-Demo/bash/install_jenkins.sh
+          owner: ubuntu
+          group: root
+          mode: 'u=rwx,g=rwx,o=rwx'
+
+      #Shell script running commands as per official Jenkins documentation
+      - name: "Install Jenkins" #Consider using the bash script for adding the keyring then letting ansible handle apt and apt-get for better modularity
+        run_once: true
+        become: yes
+        ansible.builtin.shell: /home/ubuntu/DevOps-Demo/bash/install_jenkins.sh
+
+      - name: "Start Jenkins" #You need to manually configure Jenkins using sudo systemctl edit jenkins!
+        ansible.builtin.systemd:
+          state: restarted
+          name: jenkins
+
+      - name: "Enable/Set Jenkins to run at Startup"
+        run_once: true
+        become: yes
+        ansible.builtin.systemd:
+          name: jenkins 
+          enabled: yes
+          masked: no
+
+      - name: "Install AWSCLI" #You must run "aws configure" and set credentials!
+        run_once: true
+        apt:
+          update_cache: yes
+          pkg: awscli

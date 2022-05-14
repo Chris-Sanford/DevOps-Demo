@@ -1,0 +1,14 @@
+/*Defines the pipeline for the delivery of updates to ChrisSanford.me website directory to production without rebuilding infrastructure
+*/
+
+pipeline {
+  agent any
+  stages {
+    stage('Update/Configure WWW Server') {
+      steps {
+        sh "whoami"
+        sh 'ansible-playbook ansible/www.yml -vv'
+      }
+    }
+  }
+}
