@@ -15,7 +15,9 @@ The stack/toolchain is as follows:
 | Containerization | Docker |
 | Web Server | Apache HTTP Server |
 
-The project consists of 2 servers named 'www' and 'devops' hosted in AWS using EC2. www hosts [ChrisSanford.me](http://chrissanford.me) running Docker and Apache HTTP Server. DevOps hosts all the tools needed to deliver WWW, including Jenkins (which is accessible over the Internet at [admin.chrissanford.me](https://admin.chrissanford.me)), Terraform, and Ansible.
+
+The project consists of 2 servers named `www` and `devops` hosted in AWS using EC2. `www` hosts [ChrisSanford.me](http://chrissanford.me) running Docker and Apache HTTP Server. `devops` hosts all the tools needed to deliver `www`, including Jenkins (which, for demonstrative purposes, is accessible over the Internet at [admin.chrissanford.me](https://admin.chrissanford.me)), Terraform, and Ansible.
+
 
 To explain the pipeline in (mostly) plain English:  
 >GitHub hosts the source code which  
@@ -27,10 +29,11 @@ Ansible which manages the state of
 Docker which runs  
 Apache HTTP Server which serves up [ChrisSanford.me](http://chrissanford.me).
 
-Since I often flip between macOS and Windows workstations, here's my client software as well:
+
+I use the following cross-platform client software in my development workflow:
 | Tool | Purpose |
 | ---- | ------- |
-| Google Drive | Acts as cloud storage which stores my working directory and secrets |
+| Google Drive | Acts as cloud storage which stores my local/development working directory. |
 | Terraform CLI | For provisioning development infrastructure and initial instance of DevOps server. |
 | AWS CLI | See Terraform CLI. |
 | Visual Studio Code | Integrated Development Environment (IDE). |
