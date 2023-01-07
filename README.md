@@ -3,7 +3,7 @@ A sample project to demonstrate my skills in DevOps-related tools and practices.
 
 The code found within this project is resposible for serving up my website at [ChrisSanford.me](http://chrissanford.me).
 
-The stack/toolchain/pipeline is as follows:
+The stack/toolchain is as follows:
 | Category      | Tool |
 | ----------- | ----------- |
 | Version Control / SCM | GitHub |
